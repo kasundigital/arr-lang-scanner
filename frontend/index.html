@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Sonarr / Radarr Audio Language Scanner</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="hero">
+        <div class="hero-overlay"></div>
+        <div class="hero-inner">
+          <h1>Sonarr / Radarr Audio Language Scanner</h1>
+          <p>Quickly inspect audio languages for your TV shows and movies.</p>
+        </div>
+      </header>
+
+      <main class="container">
+        <!-- LOGIN CARD -->
+        <section class="card" id="login-card">
+          <h2>Sign in</h2>
+          <p class="card-subtitle">
+            Protected access to your Sonarr / Radarr library.
+          </p>
+          <div class="field-row">
+            <label for="login-username">Username</label>
+            <input id="login-username" type="text" autocomplete="username" />
+          </div>
+          <div class="field-row">
+            <label for="login-password">Password</label>
+            <input
+              id="login-password"
+              type="password"
+              autocomplete="current-password"
+            />
+          </div>
+          <button id="login-button" class="btn primary">Login</button>
+          <div id="login-error" class="error"></div>
+        </section>
+
+        <!-- MAIN APP CARDS -->
+        <section id="app-cards" style="display: none;">
+          <div class="grid-2">
+            <div class="card">
+              <h2 class="card-title">Search Library</h2>
+              <div class="field-row">
+                <label for="type">Type</label>
+                <select id="type">
+                  <option value="tv">TV (Sonarr)</option>
+                  <option value="movie">Movie (Radarr)</option>
+                </select>
+              </div>
+
+              <div class="field-row">
+                <label for="search">Title</label>
+                <input
+                  id="search"
+                  type="text"
+                  placeholder="Start typing a title..."
+                  autocomplete="off"
+                />
+              </div>
+
+              <div id="results" class="results"></div>
+            </div>
+
+            <div class="card">
+              <h2 class="card-title">Legend</h2>
+              <ul class="legend">
+                <li>
+                  <span class="legend-badge legend-eng"></span> Only English
+                </li>
+                <li>
+                  <span class="legend-badge legend-mixed"></span>
+                  English + other languages
+                </li>
+                <li>
+                  <span class="legend-badge legend-foreign"></span>
+                  No English
+                </li>
+              </ul>
+              <p class="card-subtitle">
+                Episode rows are color-coded so you can spot mismatches at a
+                glance.
+              </p>
+            </div>
+          </div>
+
+          <section class="card">
+            <h2 class="card-title">Audio Languages (Aggregate)</h2>
+            <div id="selected-title" class="selected-title"></div>
+            <table id="langs-table" class="langs-table">
+              <thead>
+                <tr>
+                  <th>Language Code</th>
+                  <th>File Count</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+            <div id="summary" class="summary"></div>
+          </section>
+
+          <section class="card" id="episodes-card" style="display: none;">
+            <h2 class="card-title">Episodes (TV only)</h2>
+            <div id="episodes-container"></div>
+          </section>
+
+          <div id="error" class="error page-error"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
