@@ -8,6 +8,11 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "Python 3 is not installed."
+  exit 1
+fi
+
 if [[ ! -f "$CONFIG_FILE" ]]; then
   if [[ -f "config.example.ini" ]]; then
     cp config.example.ini "$CONFIG_FILE"
@@ -72,11 +77,6 @@ LOG_DIR="/var/log/$SERVICE_NAME"
 BACKEND_DIR="$APP_DIR/backend"
 PYTHON_BIN="python3"
 SVC_USER="${SUDO_USER:-root}"
-
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "Python 3 is not installed."
-  exit 1
-fi
 
 if ! python3 -m venv --help >/dev/null 2>&1; then
   echo "Python venv support is missing. Install python3-venv and try again."
