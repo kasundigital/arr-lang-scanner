@@ -1,52 +1,61 @@
 # arr-lang-scanner
 
-arr-lang-scanner is a lightweight, fast, and modern web-based scanner for detecting audio languages inside media files managed by Sonarr (TV) and Radarr (Movies).
+A lightweight web dashboard for inspecting audio languages in media managed by **Sonarr** and **Radarr**.
 
-This tool helps quickly identify language inconsistencies, validate media quality, and manage multi-language libraries with an easy-to-use dashboard.
+It helps you quickly find language inconsistencies, missing media files, and titles where MediaInfo does not contain usable audio-language metadata.
 
----
+## Features
 
-## 🚀 Key Features
+- Search TV shows from Sonarr and movies from Radarr
+- Aggregate audio-language counts for a selected title
+- Season and episode breakdown for Sonarr series
+- Clear visual status for English-only, mixed-language, non-English, missing-file, and missing-language metadata cases
+- FastAPI backend with a simple built-in web UI
+- Protected API access with username/password login and bearer token authentication
+- systemd installer for Linux
+- Docker and Docker Compose support
+- Health endpoint at `/health`
+- Interactive API documentation at `/api/docs`
 
-• Search TV shows and movies directly via Sonarr/Radarr  
-• Detect audio languages from each media file (via MediaInfo)  
-• Full season → episode breakdown for TV shows  
-• Aggregate audio-language summary for Movies and TV  
-• Modern dark UI with color coding  
-  - Green = English only  
-  - Orange = English + other languages  
-  - Blue = No English  
-  - Red = File missing  
-  - Grey = File exists but no MediaInfo  
+## Default ports
 
-All settings are controlled by a single config.ini file.
+The standard Arr ports are used in the example configuration:
 
----
+- Sonarr: `8989`
+- Radarr: `7878`
+- arr-lang-scanner: `8100`
 
-## 📦 Requirements
+## Requirements
 
-• Linux server (systemd)  
-• Python 3.9 or newer  
-• Sonarr and/or Radarr with API enabled  
+For the systemd installation:
 
----
+- Linux with systemd
+- Python 3.9+
+- `python3-venv`
+- Sonarr and/or Radarr with API access enabled
 
-## ⚙️ Configuration (`config.ini`)
+For Docker:
 
-Edit this file before installation:
+- Docker Engine
+- Docker Compose plugin
 
+## Configuration
+
+Start from `config.example.ini` or edit the included `config.ini` before starting the application.
+
+```ini
 [sonarr]
-url = https://sonarr.example.com
-api_key = YOUR_SONARR_API_KEY
+url = http://localhost:8989
+api_key = YOUR_SONARR_API_KEY_HERE
 
 [radarr]
-url = https://radarr.example.com
-api_key = YOUR_RADARR_API_KEY
+url = http://localhost:7878
+api_key = YOUR_RADARR_API_KEY_HERE
 
 [auth]
 username = admin
-password = changeme123
-token = arr-lang-token-change-me
+password = CHANGE_ME
+token = CHANGE_ME_RANDOM_TOKEN
 
 [app]
 bind_ip = 0.0.0.0
@@ -54,78 +63,123 @@ port = 8100
 request_timeout = 60
 log_level = info
 service_name = arr-lang-scanner
+```
 
----
+### Security requirements
 
-## 📥 Installation
+The application refuses to start with the shipped default password or token.
 
+For the systemd installer, set a strong password before running `install.sh`. If the token is still the placeholder value, the installer generates a cryptographically random token automatically.
+
+Do not expose the application directly to the public internet without HTTPS and appropriate firewall/reverse-proxy protection.
+
+## Linux / systemd installation
+
+```bash
 git clone https://github.com/kasundigital/arr-lang-scanner.git
 cd arr-lang-scanner
+nano config.ini
+sudo ./install.sh
+```
 
-nano config.ini          (update URLs + API keys)
+The installer:
 
-sudo ./install.sh        (sets up service and auto-starts it)
+- validates that the default password was changed
+- generates a strong bearer token when needed
+- copies the application to `/opt/arr-lang-scanner`
+- protects the installed config file with restrictive permissions
+- creates a Python virtual environment
+- installs dependencies
+- creates and enables `arr-lang-scanner.service`
+- writes logs to `/var/log/arr-lang-scanner/app.log`
+- applies basic systemd hardening options
 
-Installer actions:
-• Copies project to /opt/arr-lang-scanner  
-• Creates virtual environment  
-• Installs Python dependencies  
-• Generates systemd service “arr-lang-scanner.service”  
-• Creates logs in /var/log/arr-lang-scanner/  
-• Starts service  
+Useful commands:
 
----
-
-## 🖥 Service Commands
-
-Check service:
+```bash
 systemctl status arr-lang-scanner
-
-Restart service:
 sudo systemctl restart arr-lang-scanner
-
-View logs:
 tail -f /var/log/arr-lang-scanner/app.log
+```
 
----
+Open:
 
-## 🌐 Web Interface
-
-Open in browser:
-
+```text
 http://<server-ip>:8100/
+```
 
-Login using credentials from:
+## Docker Compose
 
-[auth]
-username = ...
-password = ...
+First set a strong password and token in `config.ini`.
 
----
+If Sonarr or Radarr runs on the Docker host, remember that `localhost` inside the scanner container refers to the scanner container itself. On Linux, this Compose file provides `host.docker.internal`, so you can use addresses such as:
 
-## 🧩 Features Overview
+```ini
+[sonarr]
+url = http://host.docker.internal:8989
 
-TV Mode (Sonarr):
-• Search shows  
-• Season listing  
-• Per-episode language detection  
-• Highlights mismatches visually  
+[radarr]
+url = http://host.docker.internal:7878
+```
 
-Movie Mode (Radarr):
-• Search movies  
-• Show all detected audio languages  
+Then start the service:
 
----
+```bash
+docker compose up -d --build
+```
 
-## 👤 Author
+Check it with:
 
-Created by **Kasun Indika (KasunDigital)**  
-GitHub: https://github.com/kasundigital  
-LinkedIn: https://www.linkedin.com/in/kasundigital/
+```bash
+docker compose ps
+docker compose logs -f
+```
 
----
+## API behavior
 
-## 📜 License
+The login endpoint is:
 
-MIT License. Free to modify and use.
+```text
+POST /api/login
+```
 
+Protected endpoints require:
+
+```text
+Authorization: Bearer <token>
+```
+
+Main protected endpoints include:
+
+```text
+GET /api/search
+GET /api/languages
+GET /api/tv/{series_id}/episodes
+```
+
+## Color guide
+
+- Green: English only
+- Orange: English plus other languages
+- Blue: no English detected
+- Red: media file missing
+- Grey: file exists but no usable MediaInfo language data is available
+
+## Security notes
+
+- Same-origin frontend/API operation is used; permissive wildcard CORS is not enabled.
+- Default credentials and placeholder tokens are rejected.
+- Authentication comparisons use constant-time comparison helpers.
+- API keys remain in the local configuration file and are never sent to the browser.
+- Keep `config.ini` out of public screenshots, support bundles, and copied logs when it contains real API keys.
+
+## Author
+
+Created by **Kasun Indika (KasunDigital)**
+
+- GitHub: https://github.com/kasundigital
+- LinkedIn: https://www.linkedin.com/in/kasundigital/
+
+## License
+
+MIT — see [LICENSE](LICENSE).
