@@ -6,25 +6,27 @@ services:
     ports:
       - "${ARR_PORT:-8100}:8100"
     environment:
-      SONARR_URL: ${SONARR_URL:-http://host.docker.internal:8989}
-      SONARR_API_KEY: ${SONARR_API_KEY:-}
-      RADARR_URL: ${RADARR_URL:-http://host.docker.internal:7878}
-      RADARR_API_KEY: ${RADARR_API_KEY:-}
-      ARR_USERNAME: ${ARR_USERNAME:-admin}
-      ARR_PASSWORD: ${ARR_PASSWORD:?Set ARR_PASSWORD in .env}
-      ARR_TOKEN: ${ARR_TOKEN:-}
+      ARR_DATA_DIR: /app/data
       REQUEST_TIMEOUT: ${REQUEST_TIMEOUT:-60}
+      # Optional migration/bootstrap values. New installs can configure everything in the web UI.
+      ARR_USERNAME: ${ARR_USERNAME:-}
+      ARR_PASSWORD: ${ARR_PASSWORD:-}
+      SONARR_URL: ${SONARR_URL:-}
+      SONARR_API_KEY: ${SONARR_API_KEY:-}
+      RADARR_URL: ${RADARR_URL:-}
+      RADARR_API_KEY: ${RADARR_API_KEY:-}
+    volumes:
+      - arr-lang-scanner-data:/app/data
     extra_hosts:
       - "host.docker.internal:host-gateway"
     security_opt:
       - no-new-privileges:true
     healthcheck:
-      test:
-        - CMD
-        - python
-        - -c
-        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/health', timeout=3)"
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/health', timeout=3)"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
+
+volumes:
+  arr-lang-scanner-data:
