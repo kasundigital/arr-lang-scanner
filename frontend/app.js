@@ -1,333 +1,162 @@
 const apiBase = "/api";
+const $ = (id) => document.getElementById(id);
 
-const loginCard = document.getElementById("login-card");
-const appCards = document.getElementById("app-cards");
-const loginUser = document.getElementById("login-username");
-const loginPass = document.getElementById("login-password");
-const loginBtn = document.getElementById("login-button");
-const loginError = document.getElementById("login-error");
+let authToken = localStorage.getItem("arr_auth_token") || null;
+let instances = [];
+let searchTimer = null;
 
-const typeSelect = document.getElementById("type");
-const searchInput = document.getElementById("search");
-const resultsDiv = document.getElementById("results");
-const langsTableBody = document.querySelector("#langs-table tbody");
-const selectedTitleDiv = document.getElementById("selected-title");
-const summaryDiv = document.getElementById("summary");
-const errorDiv = document.getElementById("error");
-const episodesCard = document.getElementById("episodes-card");
-const episodesContainer = document.getElementById("episodes-container");
-
-let authToken = localStorage.getItem("sr_auth_token") || null;
-
-function updateAuthUI() {
-  if (authToken) {
-    loginCard.style.display = "none";
-    appCards.style.display = "block";
-    loginError.textContent = "";
-  } else {
-    loginCard.style.display = "block";
-    appCards.style.display = "none";
-  }
-}
-updateAuthUI();
-
-async function authFetch(url, options = {}) {
-  const opts = { ...options };
-  opts.headers = opts.headers || {};
-
-  if (authToken) {
-    opts.headers["Authorization"] = "Bearer " + authToken;
-  }
-
-  const res = await fetch(url, opts);
-
-  if (res.status === 401) {
+async function api(path, options = {}, auth = true) {
+  const opts = { ...options, headers: { ...(options.headers || {}) } };
+  if (options.body && !opts.headers["Content-Type"]) opts.headers["Content-Type"] = "application/json";
+  if (auth && authToken) opts.headers.Authorization = `Bearer ${authToken}`;
+  const res = await fetch(`${apiBase}${path}`, opts);
+  if (res.status === 401 && auth) {
     authToken = null;
-    localStorage.removeItem("sr_auth_token");
-    updateAuthUI();
-    throw new Error("Unauthorized – please log in again.");
+    localStorage.removeItem("arr_auth_token");
+    showLogin();
+    throw new Error("Session expired. Please sign in again.");
   }
-
   return res;
 }
 
-loginBtn.addEventListener("click", doLogin);
-loginPass.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") doLogin();
+async function jsonOrError(res) {
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || `Request failed (${res.status})`);
+  return data;
+}
+
+function showOnly(id) {
+  ["setup-card", "login-card", "app-cards", "settings-panel"].forEach((x) => $(x).hidden = x !== id);
+  $("settings-button").hidden = id !== "app-cards";
+  $("logout-button").hidden = !["app-cards", "settings-panel"].includes(id);
+}
+
+function showLogin() { showOnly("login-card"); }
+
+async function boot() {
+  const status = await jsonOrError(await api("/setup-status", {}, false));
+  if (!status.setupComplete) return showOnly("setup-card");
+  if (!authToken) return showLogin();
+  try {
+    await loadInstances();
+    showOnly("app-cards");
+  } catch (_) { showLogin(); }
+}
+
+$("setup-button").onclick = async () => {
+  $("setup-error").textContent = "";
+  try {
+    const data = await jsonOrError(await api("/setup", { method: "POST", body: JSON.stringify({ username: $("setup-username").value.trim(), password: $("setup-password").value }) }, false));
+    authToken = data.token; localStorage.setItem("arr_auth_token", authToken);
+    await loadInstances(); showOnly("settings-panel");
+  } catch (e) { $("setup-error").textContent = e.message; }
+};
+
+$("login-button").onclick = doLogin;
+$("login-password").addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
+async function doLogin() {
+  $("login-error").textContent = "";
+  try {
+    const data = await jsonOrError(await api("/login", { method: "POST", body: JSON.stringify({ username: $("login-username").value.trim(), password: $("login-password").value }) }, false));
+    authToken = data.token; localStorage.setItem("arr_auth_token", authToken); $("login-password").value = "";
+    await loadInstances(); showOnly("app-cards");
+  } catch (e) { $("login-error").textContent = e.message; }
+}
+
+$("logout-button").onclick = () => { authToken = null; localStorage.removeItem("arr_auth_token"); showLogin(); };
+$("settings-button").onclick = async () => { await loadInstances(); renderSettings(); showOnly("settings-panel"); };
+$("close-settings").onclick = async () => { await loadInstances(); showOnly("app-cards"); };
+
+async function loadInstances() {
+  instances = await jsonOrError(await api("/instances"));
+  refreshInstanceSelector();
+  $("server-summary").innerHTML = instances.length ? instances.map(i => `<div class="server-chip"><b>${escapeHtml(i.name)}</b><span>${i.kind}</span></div>`).join("") : `<div class="hint">No servers configured yet. Open Settings to add one.</div>`;
+}
+
+function refreshInstanceSelector() {
+  const type = $("type").value;
+  const kind = type === "tv" ? "sonarr" : "radarr";
+  const eligible = instances.filter(i => i.kind === kind && i.enabled);
+  $("instance").innerHTML = eligible.length ? eligible.map(i => `<option value="${i.id}">${escapeHtml(i.name)}</option>`).join("") : `<option value="">No ${kind} servers configured</option>`;
+}
+$("type").onchange = () => { refreshInstanceSelector(); $("results").innerHTML = ""; };
+
+$("search").addEventListener("input", () => {
+  clearTimeout(searchTimer);
+  const q = $("search").value.trim();
+  if (q.length < 2) return $("results").innerHTML = "";
+  searchTimer = setTimeout(() => runSearch(q), 300);
 });
 
-async function doLogin() {
-  loginError.textContent = "";
-  const username = loginUser.value.trim();
-  const password = loginPass.value;
-
-  if (!username || !password) {
-    loginError.textContent = "Enter username and password.";
-    return;
-  }
-
-  try {
-    const res = await fetch(`${apiBase}/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-    });
-
-    if (!res.ok) {
-      const txt = await res.text();
-      throw new Error(`Login failed: ${txt}`);
-    }
-
-    const data = await res.json();
-    if (!data.token) {
-      throw new Error("No token received from server.");
-    }
-
-    authToken = data.token;
-    localStorage.setItem("sr_auth_token", authToken);
-    loginPass.value = "";
-    updateAuthUI();
-  } catch (e) {
-    loginError.textContent = e.message;
-  }
-}
-
-let searchTimeout = null;
-
-if (searchInput) {
-  searchInput.addEventListener("input", () => {
-    const q = searchInput.value.trim();
-    if (searchTimeout) clearTimeout(searchTimeout);
-
-    if (q.length < 2) {
-      resultsDiv.innerHTML = "";
-      return;
-    }
-
-    searchTimeout = setTimeout(() => runSearch(q), 300);
-  });
-}
-
 async function runSearch(q) {
-  const type = typeSelect.value;
-  errorDiv.textContent = "";
-  resultsDiv.innerHTML = "<div class='hint'>Searching...</div>";
-
+  const instanceId = $("instance").value;
+  if (!instanceId) return $("error").textContent = "Add and select a server first.";
+  $("error").textContent = ""; $("results").innerHTML = `<div class="hint">Searching...</div>`;
   try {
-    const res = await authFetch(
-      `${apiBase}/search?type=${encodeURIComponent(type)}&q=${encodeURIComponent(
-        q
-      )}`
-    );
-    if (!res.ok) {
-      const txt = await res.text();
-      throw new Error(`Search failed: ${txt}`);
-    }
-
-    const items = await res.json();
-    renderSearchResults(items);
-  } catch (e) {
-    errorDiv.textContent = e.message;
-    resultsDiv.innerHTML = "";
-  }
-}
-
-function renderSearchResults(items) {
-  resultsDiv.innerHTML = "";
-
-  if (!items || items.length === 0) {
-    resultsDiv.innerHTML = "<div class='hint'>No matches.</div>";
-    return;
-  }
-
-  items.forEach((item) => {
-    const btn = document.createElement("button");
-    btn.className = "result-item";
-    const year = item.year ? ` (${item.year})` : "";
-    btn.textContent = `${item.title}${year}`;
-    btn.onclick = () => selectItem(item);
-    resultsDiv.appendChild(btn);
-  });
+    const items = await jsonOrError(await api(`/search?type=${encodeURIComponent($("type").value)}&instance_id=${instanceId}&q=${encodeURIComponent(q)}`));
+    $("results").innerHTML = items.length ? "" : `<div class="hint">No matches.</div>`;
+    items.forEach(item => { const b = document.createElement("button"); b.className = "result-item"; b.textContent = `${item.title}${item.year ? ` (${item.year})` : ""}`; b.onclick = () => selectItem(item); $("results").appendChild(b); });
+  } catch (e) { $("results").innerHTML = ""; $("error").textContent = e.message; }
 }
 
 async function selectItem(item) {
-  errorDiv.textContent = "";
-  langsTableBody.innerHTML = "";
-  summaryDiv.textContent = "";
-  selectedTitleDiv.textContent = `Selected: ${item.title}${
-    item.year ? " (" + item.year + ")" : ""
-  }`;
-
+  $("error").textContent = ""; $("selected-title").textContent = `${item.title}${item.year ? ` (${item.year})` : ""} — ${item.instanceName}`;
   try {
-    const res = await authFetch(
-      `${apiBase}/languages?type=${encodeURIComponent(
-        item.type
-      )}&id=${encodeURIComponent(item.id)}`
-    );
-    if (!res.ok) {
-      const txt = await res.text();
-      throw new Error(`Language query failed: ${txt}`);
-    }
-
-    const data = await res.json();
+    const data = await jsonOrError(await api(`/languages?type=${item.type}&id=${item.id}&instance_id=${item.instanceId}`));
     renderLanguages(data);
-
-    if (item.type === "tv") {
-      episodesCard.style.display = "block";
-      await loadEpisodes(item.id);
-    } else {
-      episodesCard.style.display = "none";
-      episodesContainer.innerHTML = "";
-    }
-  } catch (e) {
-    errorDiv.textContent = e.message;
-  }
+    if (item.type === "tv") { $("episodes-card").hidden = false; await loadEpisodes(item.id, item.instanceId); }
+    else { $("episodes-card").hidden = true; $("episodes-container").innerHTML = ""; }
+  } catch (e) { $("error").textContent = e.message; }
 }
 
 function renderLanguages(data) {
-  langsTableBody.innerHTML = "";
-
+  const body = document.querySelector("#langs-table tbody"); body.innerHTML = "";
   const langs = data.audioLanguages || [];
-  const total = data.totalFiles || 0;
-
-  if (total === 0) {
-    summaryDiv.textContent =
-      "No files found or mediaInfo not available for this item.";
-    return;
-  }
-
-  langs.forEach((entry) => {
-    const tr = document.createElement("tr");
-    const code = (entry.code || "").toUpperCase();
-
-    if (code === "ENG" || code === "EN") {
-      tr.classList.add("lang-row-eng");
-    } else if (code.includes("ENG") || code.includes("EN")) {
-      tr.classList.add("lang-row-mixed");
-    } else {
-      tr.classList.add("lang-row-foreign");
-    }
-
-    const tdCode = document.createElement("td");
-    const tdCount = document.createElement("td");
-
-    tdCode.textContent = entry.code;
-    tdCount.textContent = entry.count;
-
-    tr.appendChild(tdCode);
-    tr.appendChild(tdCount);
-
-    langsTableBody.appendChild(tr);
-  });
-
-  if (langs.length === 0) {
-    summaryDiv.textContent = `Total files: ${total}. No audio language tags found (check Analyze MediaInfo settings in Sonarr/Radarr).`;
-  } else {
-    const codes = langs.map((l) => l.code).join(", ");
-    summaryDiv.textContent = `Total files: ${total}. Audio languages detected: ${codes}.`;
-  }
+  langs.forEach(x => { const tr = document.createElement("tr"); const code = (x.code || "").toUpperCase(); tr.className = (code === "ENG" || code === "EN") ? "lang-row-eng" : "lang-row-foreign"; tr.innerHTML = `<td>${escapeHtml(x.code || "-")}</td><td>${x.count}</td>`; body.appendChild(tr); });
+  $("summary").textContent = data.totalFiles ? `Total files: ${data.totalFiles}. ${langs.length ? `Languages: ${langs.map(x => x.code).join(", ")}` : "No audio language tags found."}` : "No media files found.";
 }
 
-async function loadEpisodes(seriesId) {
-  episodesContainer.innerHTML = "<div class='hint'>Loading episodes...</div>";
-
-  try {
-    const res = await authFetch(
-      `${apiBase}/tv/${encodeURIComponent(seriesId)}/episodes`
-    );
-    if (!res.ok) {
-      const txt = await res.text();
-      throw new Error(`Episodes query failed: ${txt}`);
-    }
-
-    const data = await res.json();
-    renderEpisodes(data);
-  } catch (e) {
-    episodesContainer.innerHTML = "";
-    errorDiv.textContent = e.message;
-  }
+async function loadEpisodes(seriesId, instanceId) {
+  $("episodes-container").innerHTML = `<div class="hint">Loading episodes...</div>`;
+  try { renderEpisodes(await jsonOrError(await api(`/tv/${seriesId}/episodes?instance_id=${instanceId}`))); }
+  catch (e) { $("episodes-container").innerHTML = ""; $("error").textContent = e.message; }
 }
 
 function renderEpisodes(data) {
-  episodesContainer.innerHTML = "";
-
-  const seasons = data.seasons || [];
-  if (seasons.length === 0) {
-    episodesContainer.innerHTML = "<div class='hint'>No episodes found.</div>";
-    return;
-  }
-
-  seasons.forEach((season) => {
-    const block = document.createElement("div");
-    block.className = "season-block";
-
-    const header = document.createElement("h3");
-    header.textContent =
-      season.seasonNumber === 0
-        ? "Season 0 (Specials)"
-        : `Season ${season.seasonNumber}`;
-    block.appendChild(header);
-
-    const table = document.createElement("table");
-    table.className = "langs-table compact";
-
-    const thead = document.createElement("thead");
-    thead.innerHTML = `
-      <tr>
-        <th>Episode</th>
-        <th>Title</th>
-        <th>Audio Languages</th>
-      </tr>`;
-    table.appendChild(thead);
-
-    const tbody = document.createElement("tbody");
-
-    (season.episodes || []).forEach((ep) => {
-      const tr = document.createElement("tr");
-
-      const tdEp = document.createElement("td");
-      tdEp.textContent = `S${String(ep.seasonNumber).padStart(
-        2,
-        "0"
-      )}E${String(ep.episodeNumber).padStart(2, "0")}`;
-
-      const tdTitle = document.createElement("td");
-      tdTitle.textContent = ep.title || "";
-
-      const tdLang = document.createElement("td");
-      if (!ep.hasFile) {
-        tdLang.textContent = "No file";
-        tr.classList.add("row-nofile");
-      } else if (!ep.audioLanguages || ep.audioLanguages.length === 0) {
-        tdLang.textContent = "-";
-        tr.classList.add("row-nolang");
-      } else {
-        tdLang.textContent = ep.audioLanguages.join(", ");
-
-        const langsUpper = ep.audioLanguages.map((l) => l.toUpperCase());
-        const onlyEng = langsUpper.every(
-          (l) => l === "ENG" || l === "EN"
-        );
-        const hasEng = langsUpper.some((l) => l === "ENG" || l === "EN");
-
-        if (onlyEng) {
-          tr.classList.add("row-eng");
-        } else if (hasEng) {
-          tr.classList.add("row-mixed");
-        } else {
-          tr.classList.add("row-foreign");
-        }
-      }
-
-      tr.appendChild(tdEp);
-      tr.appendChild(tdTitle);
-      tr.appendChild(tdLang);
-
-      tbody.appendChild(tr);
-    });
-
-    table.appendChild(tbody);
-    block.appendChild(table);
-    episodesContainer.appendChild(block);
+  const root = $("episodes-container"); root.innerHTML = "";
+  (data.seasons || []).forEach(season => {
+    const block = document.createElement("div"); block.className = "season-block";
+    block.innerHTML = `<h3>${season.seasonNumber === 0 ? "Season 0 (Specials)" : `Season ${season.seasonNumber}`}</h3><div class="table-wrap"><table class="langs-table compact"><thead><tr><th>Episode</th><th>Title</th><th>Audio</th></tr></thead><tbody></tbody></table></div>`;
+    const tbody = block.querySelector("tbody");
+    (season.episodes || []).forEach(ep => { const tr = document.createElement("tr"); const langs = ep.audioLanguages || []; tr.className = !ep.hasFile ? "row-nofile" : !langs.length ? "row-nolang" : langs.every(l => ["EN","ENG"].includes(l.toUpperCase())) ? "row-eng" : langs.some(l => ["EN","ENG"].includes(l.toUpperCase())) ? "row-mixed" : "row-foreign"; tr.innerHTML = `<td>S${String(ep.seasonNumber).padStart(2,"0")}E${String(ep.episodeNumber).padStart(2,"0")}</td><td>${escapeHtml(ep.title || "")}</td><td>${!ep.hasFile ? "No file" : escapeHtml(langs.join(", ") || "-")}</td>`; tbody.appendChild(tr); });
+    root.appendChild(block);
   });
 }
+
+function renderSettings() {
+  $("instance-list").innerHTML = instances.length ? instances.map(i => `<div class="instance-row"><div><b>${escapeHtml(i.name)}</b><div class="hint">${i.kind} · ${escapeHtml(i.url)} · ${i.enabled ? "Enabled" : "Disabled"}</div></div><div class="button-row"><button class="btn small" onclick="testInstance(${i.id})">Test</button><button class="btn small" onclick="editInstance(${i.id})">Edit</button><button class="btn small danger" onclick="deleteInstance(${i.id})">Delete</button></div></div>`).join("") : `<div class="hint">No servers configured.</div>`;
+}
+
+$("save-instance").onclick = async () => {
+  $("settings-message").textContent = "";
+  const id = $("instance-id").value;
+  const body = { kind: $("setting-kind").value, name: $("setting-name").value.trim(), url: $("setting-url").value.trim(), api_key: $("setting-key").value.trim(), enabled: true };
+  try { await jsonOrError(await api(id ? `/instances/${id}` : "/instances", { method: id ? "PUT" : "POST", body: JSON.stringify(body) })); clearInstanceForm(); await loadInstances(); renderSettings(); $("settings-message").textContent = "Server saved."; }
+  catch (e) { $("settings-message").textContent = e.message; }
+};
+
+window.editInstance = (id) => { const i = instances.find(x => x.id === id); if (!i) return; $("instance-id").value = i.id; $("setting-kind").value = i.kind; $("setting-name").value = i.name; $("setting-url").value = i.url; $("setting-key").value = i.api_key; window.scrollTo({ top: 0, behavior: "smooth" }); };
+window.testInstance = async (id) => { try { const d = await jsonOrError(await api(`/instances/${id}/test`, { method: "POST" })); alert(`Connection OK${d.version ? ` — version ${d.version}` : ""}`); } catch (e) { alert(`Connection failed: ${e.message}`); } };
+window.deleteInstance = async (id) => { if (!confirm("Delete this server?")) return; await jsonOrError(await api(`/instances/${id}`, { method: "DELETE" })); await loadInstances(); renderSettings(); };
+
+function clearInstanceForm() { $("instance-id").value = ""; $("setting-name").value = ""; $("setting-url").value = ""; $("setting-key").value = ""; }
+$("cancel-instance").onclick = clearInstanceForm;
+
+$("save-credentials").onclick = async () => {
+  try { await jsonOrError(await api("/credentials", { method: "PUT", body: JSON.stringify({ username: $("new-username").value.trim(), password: $("new-password").value }) })); authToken = null; localStorage.removeItem("arr_auth_token"); alert("Login updated. Please sign in again."); showLogin(); }
+  catch (e) { $("credential-message").textContent = e.message; }
+};
+
+function escapeHtml(value) { return String(value ?? "").replace(/[&<>'"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c])); }
+
+boot().catch(e => { $("login-error").textContent = e.message; showLogin(); });
