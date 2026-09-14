@@ -1,117 +1,57 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Sonarr / Radarr Audio Language Scanner</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="stylesheet" href="/static/styles.css" />
-  </head>
-  <body>
-    <div class="page">
-      <header class="hero">
-        <div class="hero-overlay"></div>
-        <div class="hero-inner">
-          <h1>Sonarr / Radarr Audio Language Scanner</h1>
-          <p>Quickly inspect audio languages for your TV shows and movies.</p>
-        </div>
-      </header>
+<head>
+  <meta charset="utf-8" />
+  <title>Arr Language Scanner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="stylesheet" href="/static/admin.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="hero"><div class="hero-inner"><div><h1>Arr Language Scanner</h1><p>Scan audio languages across multiple Sonarr and Radarr servers.</p></div><div class="top-actions"><button id="settings-button" class="btn ghost" hidden>Settings</button><button id="logout-button" class="btn ghost" hidden>Logout</button></div></div></header>
+    <main class="container">
+      <section class="card auth-card" id="setup-card" hidden>
+        <h2>First-time setup</h2><p class="card-subtitle">Create the administrator login. You can add Sonarr and Radarr servers after signing in.</p>
+        <div class="field-row"><label>Username</label><input id="setup-username" value="admin" autocomplete="username" /></div>
+        <div class="field-row"><label>Password</label><input id="setup-password" type="password" autocomplete="new-password" placeholder="At least 8 characters" /></div>
+        <button id="setup-button" class="btn primary">Create account</button><div id="setup-error" class="error"></div>
+      </section>
 
-      <main class="container">
-        <!-- LOGIN CARD -->
-        <section class="card" id="login-card">
-          <h2>Sign in</h2>
-          <p class="card-subtitle">
-            Protected access to your Sonarr / Radarr library.
-          </p>
-          <div class="field-row">
-            <label for="login-username">Username</label>
-            <input id="login-username" type="text" autocomplete="username" />
-          </div>
-          <div class="field-row">
-            <label for="login-password">Password</label>
-            <input
-              id="login-password"
-              type="password"
-              autocomplete="current-password"
-            />
-          </div>
-          <button id="login-button" class="btn primary">Login</button>
-          <div id="login-error" class="error"></div>
-        </section>
+      <section class="card auth-card" id="login-card" hidden>
+        <h2>Sign in</h2><p class="card-subtitle">Protected access to your media scanner.</p>
+        <div class="field-row"><label>Username</label><input id="login-username" autocomplete="username" /></div>
+        <div class="field-row"><label>Password</label><input id="login-password" type="password" autocomplete="current-password" /></div>
+        <button id="login-button" class="btn primary">Login</button><div id="login-error" class="error"></div>
+      </section>
 
-        <!-- MAIN APP CARDS -->
-        <section id="app-cards" style="display: none;">
-          <div class="grid-2">
-            <div class="card">
-              <h2 class="card-title">Search Library</h2>
-              <div class="field-row">
-                <label for="type">Type</label>
-                <select id="type">
-                  <option value="tv">TV (Sonarr)</option>
-                  <option value="movie">Movie (Radarr)</option>
-                </select>
-              </div>
-
-              <div class="field-row">
-                <label for="search">Title</label>
-                <input
-                  id="search"
-                  type="text"
-                  placeholder="Start typing a title..."
-                  autocomplete="off"
-                />
-              </div>
-
-              <div id="results" class="results"></div>
-            </div>
-
-            <div class="card">
-              <h2 class="card-title">Legend</h2>
-              <ul class="legend">
-                <li>
-                  <span class="legend-badge legend-eng"></span> Only English
-                </li>
-                <li>
-                  <span class="legend-badge legend-mixed"></span>
-                  English + other languages
-                </li>
-                <li>
-                  <span class="legend-badge legend-foreign"></span>
-                  No English
-                </li>
-              </ul>
-              <p class="card-subtitle">
-                Episode rows are color-coded so you can spot mismatches at a
-                glance.
-              </p>
-            </div>
-          </div>
-
+      <section id="app-cards" hidden>
+        <div class="grid-2">
           <section class="card">
-            <h2 class="card-title">Audio Languages (Aggregate)</h2>
-            <div id="selected-title" class="selected-title"></div>
-            <table id="langs-table" class="langs-table">
-              <thead>
-                <tr>
-                  <th>Language Code</th>
-                  <th>File Count</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-            <div id="summary" class="summary"></div>
+            <h2 class="card-title">Search Library</h2>
+            <div class="field-row"><label>Type</label><select id="type"><option value="tv">TV (Sonarr)</option><option value="movie">Movie (Radarr)</option></select></div>
+            <div class="field-row"><label>Server</label><select id="instance"></select></div>
+            <div class="field-row"><label>Title</label><input id="search" placeholder="Start typing a title..." autocomplete="off" /></div>
+            <div id="results" class="results"></div>
           </section>
+          <section class="card"><h2 class="card-title">Servers</h2><div id="server-summary" class="server-summary"></div><p class="card-subtitle">Add as many Sonarr and Radarr instances as you need from Settings.</p></section>
+        </div>
+        <section class="card"><h2 class="card-title">Audio Languages</h2><div id="selected-title" class="selected-title"></div><table id="langs-table" class="langs-table"><thead><tr><th>Language</th><th>Files</th></tr></thead><tbody></tbody></table><div id="summary" class="summary"></div></section>
+        <section class="card" id="episodes-card" hidden><h2 class="card-title">Episodes</h2><div id="episodes-container"></div></section>
+        <div id="error" class="error page-error"></div>
+      </section>
 
-          <section class="card" id="episodes-card" style="display: none;">
-            <h2 class="card-title">Episodes (TV only)</h2>
-            <div id="episodes-container"></div>
-          </section>
-
-          <div id="error" class="error page-error"></div>
+      <section id="settings-panel" hidden>
+        <div class="section-head"><div><h2>Settings</h2><p>Manage servers and login details without editing Docker files.</p></div><button id="close-settings" class="btn ghost">Back to scanner</button></div>
+        <section class="card"><h3>Add / edit Arr server</h3><input id="instance-id" type="hidden" />
+          <div class="settings-grid"><div class="field-row"><label>Type</label><select id="setting-kind"><option value="sonarr">Sonarr</option><option value="radarr">Radarr</option></select></div><div class="field-row"><label>Name</label><input id="setting-name" placeholder="Main Sonarr" /></div><div class="field-row"><label>URL</label><input id="setting-url" placeholder="http://host.docker.internal:8989" /></div><div class="field-row"><label>API key</label><input id="setting-key" type="password" placeholder="API key" /></div></div>
+          <div class="button-row"><button id="save-instance" class="btn primary">Save server</button><button id="cancel-instance" class="btn ghost">Clear</button></div><div id="settings-message" class="hint"></div>
         </section>
-      </main>
-    </div>
-
-    <script src="/static/app.js"></script>
-  </body>
+        <section class="card"><h3>Configured servers</h3><div id="instance-list"></div></section>
+        <section class="card"><h3>Change login</h3><div class="settings-grid"><div class="field-row"><label>Username</label><input id="new-username" /></div><div class="field-row"><label>New password</label><input id="new-password" type="password" placeholder="At least 8 characters" /></div></div><button id="save-credentials" class="btn primary">Change login</button><div id="credential-message" class="hint"></div></section>
+      </section>
+    </main>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
 </html>
