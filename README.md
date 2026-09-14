@@ -30,7 +30,7 @@ The standard Arr ports are used in the example configuration:
 For the systemd installation:
 
 - Linux with systemd
-- Python 3.9+
+- Python 3.10+
 - `python3-venv`
 - Sonarr and/or Radarr with API access enabled
 
