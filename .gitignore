@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*.log
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+config.local.ini
+.DS_Store
+.vscode/
+.idea/
