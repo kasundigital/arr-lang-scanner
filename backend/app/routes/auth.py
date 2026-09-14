@@ -1,3 +1,5 @@
+import hmac
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -13,10 +15,10 @@ class LoginRequest(BaseModel):
 
 @router.post("/login")
 def login(body: LoginRequest):
-    if (
-        body.username == config.AUTH_USERNAME
-        and body.password == config.AUTH_PASSWORD
-    ):
+    username_ok = hmac.compare_digest(body.username, config.AUTH_USERNAME)
+    password_ok = hmac.compare_digest(body.password, config.AUTH_PASSWORD)
+
+    if username_ok and password_ok:
         return {"token": config.AUTH_TOKEN}
 
     raise HTTPException(status_code=401, detail="Invalid credentials")
