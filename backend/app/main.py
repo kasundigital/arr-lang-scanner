@@ -1,28 +1,22 @@
 from pathlib import Path
 
-from fastapi import FastAPI, Depends
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from fastapi import Depends, FastAPI
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
-from .routes import search, languages, auth
+from .routes import auth, languages, search
 from .utils.auth import require_auth
 
 app = FastAPI(
     title="Sonarr/Radarr Audio Language Scanner",
-    version="1.2.0",
+    version="1.3.0",
+    docs_url="/api/docs",
+    redoc_url=None,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
+# The frontend is served by this same application, so permissive cross-origin
+# access is unnecessary and would weaken the authentication boundary.
 app.include_router(auth.router, prefix="/api")
-
 app.include_router(
     search.router,
     prefix="/api",
@@ -35,9 +29,9 @@ app.include_router(
 )
 
 
-@app.get("/health")
+@app.get("/health", tags=["health"])
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "service": "arr-lang-scanner", "version": "1.3.0"}
 
 
 BASE_DIR = Path(__file__).resolve().parents[2]
