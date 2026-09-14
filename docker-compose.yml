@@ -1,12 +1,19 @@
 services:
   arr-lang-scanner:
-    build: .
+    image: ghcr.io/kasundigital/arr-lang-scanner:latest
     container_name: arr-lang-scanner
     restart: unless-stopped
     ports:
-      - "8100:8100"
-    volumes:
-      - ./config.ini:/app/config.ini:ro
+      - "${ARR_PORT:-8100}:8100"
+    environment:
+      SONARR_URL: ${SONARR_URL:-http://host.docker.internal:8989}
+      SONARR_API_KEY: ${SONARR_API_KEY:-}
+      RADARR_URL: ${RADARR_URL:-http://host.docker.internal:7878}
+      RADARR_API_KEY: ${RADARR_API_KEY:-}
+      ARR_USERNAME: ${ARR_USERNAME:-admin}
+      ARR_PASSWORD: ${ARR_PASSWORD:?Set ARR_PASSWORD in .env}
+      ARR_TOKEN: ${ARR_TOKEN:-}
+      REQUEST_TIMEOUT: ${REQUEST_TIMEOUT:-60}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     security_opt:
