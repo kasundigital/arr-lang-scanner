@@ -1,8 +1,12 @@
 FROM python:3.12-slim
 
+LABEL org.opencontainers.image.title="arr-lang-scanner" \
+      org.opencontainers.image.description="Audio language scanner for Sonarr and Radarr libraries" \
+      org.opencontainers.image.source="https://github.com/kasundigital/arr-lang-scanner" \
+      org.opencontainers.image.licenses="MIT"
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    ARR_LANG_SCANNER_CONFIG=/app/config.ini
+    PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
