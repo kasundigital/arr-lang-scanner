@@ -1,8 +1,8 @@
-from typing import Literal, List
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
 
-from ..services import sonarr, radarr
+from ..services import arr
 
 router = APIRouter(tags=["search"])
 
@@ -11,14 +11,10 @@ router = APIRouter(tags=["search"])
 def search_items(
     q: str = Query(..., min_length=1),
     type: Literal["tv", "movie"] = Query(...),
-) -> List[dict]:
+    instance_id: int = Query(..., ge=1),
+) -> list[dict]:
     query = q.strip()
     if not query:
         raise HTTPException(status_code=400, detail="Query cannot be empty")
-
-    if type == "tv":
-        return sonarr.search_series(query)
-    elif type == "movie":
-        return radarr.search_movies(query)
-    else:
-        raise HTTPException(status_code=400, detail="Invalid type")
+    kind = "sonarr" if type == "tv" else "radarr"
+    return arr.search(instance_id, kind, query)
